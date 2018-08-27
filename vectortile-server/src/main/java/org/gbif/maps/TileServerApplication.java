@@ -6,7 +6,8 @@ import org.gbif.common.search.solr.builders.CloudSolrServerBuilder;
 import org.gbif.maps.common.meta.MapMetastore;
 import org.gbif.maps.common.meta.Metastores;
 import org.gbif.maps.resource.*;
-import org.gbif.occurrence.search.heatmap.OccurrenceHeatmapsService;
+import org.gbif.occurrence.search.heatmap.OccurrenceHeatmapService;
+import org.gbif.occurrence.search.heatmap.es.EsOccurrenceHeatmapResponse;
 import org.gbif.ws.discovery.lifecycle.DiscoveryLifeCycle;
 
 import io.dropwizard.Application;
@@ -51,10 +52,8 @@ public class TileServerApplication extends Application<TileServerConfiguration> 
     Configuration conf = HBaseConfiguration.create();
     conf.set("hbase.zookeeper.quorum", configuration.getHbase().getZookeeperQuorum());
 
-    SolrClient client = new CloudSolrServerBuilder()
-      .withZkHost(configuration.getSolr().getZookeeperQuorum())
-      .withDefaultCollection(configuration.getSolr().getDefaultCollection()).build();
-    OccurrenceHeatmapsService solrService = new OccurrenceHeatmapsService(client);
+    //TODO: create instance using the elastic search client
+    OccurrenceHeatmapService<EsOccurrenceHeatmapResponse> heatmapsService = null;
 
 
     // Either use Zookeeper or static config to locate tables
@@ -78,12 +77,11 @@ public class TileServerApplication extends Application<TileServerConfiguration> 
                                           configuration.getHbase().getBufferSize());
     environment.jersey().register(tiles);
 
-    environment.jersey().register(new RegressionResource(tiles, client));
 
-    // The resource that queries SOLR directly for HeatMap data
-    environment.jersey().register(new SolrResource(solrService,
-                                                   configuration.getSolr().getTileSize(),
-                                                   configuration.getSolr().getBufferSize()));
+    // The resource that queries ES directly for HeatMap data
+    environment.jersey().register(new EsResource(heatmapsService,
+                                  configuration.getEsConfig().getTileSize(),
+                                  configuration.getEsConfig().getBufferSize()));
 
     environment.jersey().register(new BackwardCompatibility(tiles));
 

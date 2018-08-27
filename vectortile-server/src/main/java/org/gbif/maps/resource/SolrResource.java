@@ -8,8 +8,8 @@ import org.gbif.maps.common.projection.TileSchema;
 import org.gbif.maps.common.projection.Tiles;
 import org.gbif.occurrence.search.heatmap.OccurrenceHeatmapRequest;
 import org.gbif.occurrence.search.heatmap.OccurrenceHeatmapRequestProvider;
-import org.gbif.occurrence.search.heatmap.OccurrenceHeatmapResponse;
-import org.gbif.occurrence.search.heatmap.OccurrenceHeatmapsService;
+import org.gbif.occurrence.search.heatmap.OccurrenceHeatmapService;
+import org.gbif.occurrence.search.heatmap.solr.SolrOccurrenceHeatmapResponse;
 
 import java.awt.geom.Point2D;
 import java.awt.geom.Rectangle2D;
@@ -62,10 +62,10 @@ public final class SolrResource {
   private final int tileSize;
   private final int bufferSize;
   private final TileProjection projection;
-  private final OccurrenceHeatmapsService solrService;
+  private final OccurrenceHeatmapService<SolrOccurrenceHeatmapResponse> solrService;
 
 
-  public SolrResource(OccurrenceHeatmapsService solrService, int tileSize, int bufferSize) throws IOException {
+  public SolrResource(OccurrenceHeatmapService<SolrOccurrenceHeatmapResponse> solrService, int tileSize, int bufferSize) throws IOException {
     this.tileSize = tileSize;
     this.bufferSize = bufferSize;
     this.solrService = solrService;
@@ -107,11 +107,11 @@ public final class SolrResource {
     heatmapRequest.setGeometry(solrSearchGeom(z, x, y));
     LOG.info("SOLR request:{}", heatmapRequest.toString());
 
-    OccurrenceHeatmapResponse solrResponse = solrService.searchHeatMap(heatmapRequest);
+    SolrOccurrenceHeatmapResponse solrResponse = solrService.searchHeatMap(heatmapRequest);
     VectorTileEncoder encoder = new VectorTileEncoder (tileSize, bufferSize, false);
 
     // Handle datelines in the SOLRResponse.
-    OccurrenceHeatmapResponse datelineAdjustedResponse = datelineAdjustedResponse(solrResponse);
+    SolrOccurrenceHeatmapResponse datelineAdjustedResponse = datelineAdjustedResponse(solrResponse);
 
     // iterate the data structure from SOLR painting cells
     // (note: this is not pretty, but neither is the result from SOLR... some cleanup here would be beneficial)
@@ -200,7 +200,7 @@ public final class SolrResource {
    * Returns a new object with the min and max X set correctly for dateline adjustment or the source if the dateline
    * was not crossed.
    */
-  private OccurrenceHeatmapResponse datelineAdjustedResponse(OccurrenceHeatmapResponse source) {
+  private SolrOccurrenceHeatmapResponse datelineAdjustedResponse(SolrOccurrenceHeatmapResponse source) {
     if (source.getMaxX() < source.getMinX()) {
       double minX = source.getMinX();
       double maxX = source.getMaxX();
@@ -212,7 +212,7 @@ public final class SolrResource {
       }
 
       // need to return new object because it sets internal variables (e.g. length) in constructor
-      return new OccurrenceHeatmapResponse(
+      return new SolrOccurrenceHeatmapResponse(
           source.getColumns(),
           source.getRows(),
           source.getCount(),

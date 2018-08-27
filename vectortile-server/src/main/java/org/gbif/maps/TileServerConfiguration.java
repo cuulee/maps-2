@@ -9,6 +9,8 @@ import com.codahale.metrics.MetricRegistry;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import io.dropwizard.Configuration;
 import io.dropwizard.logging.LoggingUtil;
+
+import org.gbif.occurrence.search.es.EsConfig;
 import org.gbif.ws.discovery.conf.ServiceConfiguration;
 
 import ch.qos.logback.classic.LoggerContext;
@@ -28,7 +30,7 @@ public class  TileServerConfiguration extends Configuration {
 
   @Valid
   @NotNull
-  private SolrConfiguration solr;
+  private EsConfiguration esConfig;
 
   @Valid
   @Nullable
@@ -49,13 +51,13 @@ public class  TileServerConfiguration extends Configuration {
   }
 
   @JsonProperty
-  public SolrConfiguration getSolr() {
-    return solr;
+  public EsConfiguration getEsConfig() {
+    return esConfig;
   }
 
   @JsonProperty
-  public void setSolr(SolrConfiguration solr) {
-    this.solr = solr;
+  public void setEsConfig(EsConfiguration esConfig) {
+    this.esConfig = esConfig;
   }
 
   @JsonProperty
@@ -189,7 +191,50 @@ public class  TileServerConfiguration extends Configuration {
     }
   }
 
+  public static class EsConfiguration extends Configuration {
+
+    @Valid
+    @NotNull
+    private EsConfig esConfig;
+
+    @Valid
+    @NotNull
+    private Integer tileSize;
+
+    @Valid
+    @NotNull
+    private Integer bufferSize;
+
+    @JsonProperty
+    public EsConfig getEsConfig() {
+      return esConfig;
+    }
+
+    public void setEsConfig(EsConfig esConfig) {
+      this.esConfig = esConfig;
+    }
+
+    @JsonProperty
+    public Integer getTileSize() {
+      return tileSize;
+    }
+
+    public void setTileSize(Integer tileSize) {
+      this.tileSize = tileSize;
+    }
+
+    @JsonProperty
+    public Integer getBufferSize() {
+      return bufferSize;
+    }
+
+    public void setBufferSize(Integer bufferSize) {
+      this.bufferSize = bufferSize;
+    }
+  }
+
   public static class SolrConfiguration extends Configuration {
+
     @Valid
     @NotNull
     private String zookeeperQuorum;
