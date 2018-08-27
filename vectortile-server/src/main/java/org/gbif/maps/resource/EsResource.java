@@ -172,8 +172,7 @@ public final class EsResource {
    */
   private static String searchGeom(int z, long x, long y) {
     Double2D[] boundary = bufferedTileBoundary(z, x, y);
-    return "[" + boundary[0].getX() + " " + boundary[0].getY() + " TO "
-           + boundary[1].getX() + " " + boundary[1].getY() + "]";
+    return boundary[0].getX() + "," + boundary[0].getY() + "," + boundary[1].getX() + "," + boundary[1].getY();
   }
 
   /**

@@ -2,7 +2,6 @@ package org.gbif.maps;
 
 import ch.qos.logback.classic.LoggerContext;
 import ch.qos.logback.classic.util.ContextInitializer;
-import org.gbif.common.search.solr.builders.CloudSolrServerBuilder;
 import org.gbif.maps.common.meta.MapMetastore;
 import org.gbif.maps.common.meta.Metastores;
 import org.gbif.maps.resource.*;
@@ -16,7 +15,6 @@ import io.dropwizard.setup.Bootstrap;
 import io.dropwizard.setup.Environment;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.HBaseConfiguration;
-import org.apache.solr.client.solrj.SolrClient;
 import org.slf4j.LoggerFactory;
 
 /**
