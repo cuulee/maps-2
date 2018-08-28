@@ -48,7 +48,7 @@ import static org.gbif.maps.resource.Params.enableCORS;
  * SOLR search as a vector tile service.
  * Note to developers: This class could benefit from some significant refactoring and cleanup.
  */
-@Path("/map/occurrence/adhoc")
+@Path("/occurrence/adhoc")
 @Singleton
 public final class EsResource {
 
@@ -93,6 +93,8 @@ public final class EsResource {
 
 
     heatmapRequest.setGeometry(searchGeom(z, x, y));
+    heatmapRequest.setZoom(adjustZoom(z));
+
     LOG.info("Heatmap request:{}", heatmapRequest);
 
     EsOccurrenceHeatmapResponse heatmapResponse = heatmapService.searchHeatMap(heatmapRequest);
@@ -204,6 +206,10 @@ public final class EsResource {
     minLat = Math.max(minLat, -90);
 
     return new Double2D[] {new Double2D(minLng, minLat), new Double2D(maxLng, maxLat)};
+  }
+
+  private int adjustZoom(int z) {
+    return Math.max(3, Math.min(z , 6));
   }
 
   /**
