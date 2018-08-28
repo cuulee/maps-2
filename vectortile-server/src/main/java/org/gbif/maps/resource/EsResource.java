@@ -190,7 +190,9 @@ public final class EsResource {
 
     // the edges of the tile after buffering
     double minLng = (degreesPerTile * x) - 180 - bufferDegrees;
+    minLng = (minLng > 180)? minLng - 360: (minLng < -180)? minLng + 360 : minLng;
     double maxLng = minLng + degreesPerTile + (bufferDegrees * 2);
+    maxLng = (maxLng > 180)? maxLng - 360: (maxLng < -180)? maxLng + 360 : maxLng;
 
     double maxLat = 90 - (degreesPerTile * y) + bufferDegrees;
     double minLat = maxLat - degreesPerTile - 2 * bufferDegrees;
