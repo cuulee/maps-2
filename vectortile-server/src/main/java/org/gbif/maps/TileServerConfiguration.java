@@ -195,7 +195,11 @@ public class  TileServerConfiguration extends Configuration {
 
     @Valid
     @NotNull
-    private EsConfig esConfig;
+    private String[] hosts;
+
+    @Valid
+    @NotNull
+    private String index;
 
     @Valid
     @NotNull
@@ -206,12 +210,21 @@ public class  TileServerConfiguration extends Configuration {
     private Integer bufferSize;
 
     @JsonProperty
-    public EsConfig getEsConfig() {
-      return esConfig;
+    public String[] getHosts() {
+      return hosts;
     }
 
-    public void setEsConfig(EsConfig esConfig) {
-      this.esConfig = esConfig;
+    public void setHosts(String[] hosts) {
+      this.hosts = hosts;
+    }
+
+    @JsonProperty
+    public String getIndex() {
+      return index;
+    }
+
+    public void setIndex(String index) {
+      this.index = index;
     }
 
     @JsonProperty
