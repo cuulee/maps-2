@@ -48,7 +48,7 @@ import static org.gbif.maps.resource.Params.enableCORS;
  * SOLR search as a vector tile service.
  * Note to developers: This class could benefit from some significant refactoring and cleanup.
  */
-@Path("/occurrence/adhoc")
+@Path("/map/occurrence/adhoc")
 @Singleton
 public final class EsResource {
 
