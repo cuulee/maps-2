@@ -11,11 +11,7 @@ import org.gbif.occurrence.search.heatmap.OccurrenceHeatmapRequestProvider;
 import org.gbif.occurrence.search.heatmap.OccurrenceHeatmapService;
 import org.gbif.occurrence.search.heatmap.es.EsOccurrenceHeatmapResponse;
 
-import java.awt.geom.Point2D;
-import java.awt.geom.Rectangle2D;
-import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.Collections;
 import javax.inject.Singleton;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
@@ -32,6 +28,8 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.GeometryFactory;
+import com.vividsolutions.jts.geom.Point;
+import com.vividsolutions.jts.geom.Polygon;
 import no.ecc.vectortile.VectorTileEncoder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -45,15 +43,19 @@ import static org.gbif.maps.resource.Params.SQUARE_TILE_SIZE;
 import static org.gbif.maps.resource.Params.enableCORS;
 
 /**
- * SOLR search as a vector tile service.
- * Note to developers: This class could benefit from some significant refactoring and cleanup.
+ * Elasticsearch as a vector tile service.
  */
 @Path("/map/occurrence/adhoc")
 @Singleton
 public final class EsResource {
 
   private static final Logger LOG = LoggerFactory.getLogger(EsResource.class);
+
   private static final GeometryFactory GEOMETRY_FACTORY = new GeometryFactory();
+
+  private static final String ESPG_4326 = "EPSG:4326";
+
+  private static final String LAYER_NAME = "occurrence";
 
   @VisibleForTesting
   static final double QUERY_BUFFER_PERCENTAGE = 0.125;  // 1/8th tile buffer all around, similar to the HBase maps
@@ -64,11 +66,11 @@ public final class EsResource {
   private final OccurrenceHeatmapService<EsOccurrenceHeatmapResponse> heatmapService;
 
 
-  public EsResource(OccurrenceHeatmapService<EsOccurrenceHeatmapResponse> heatmapService, int tileSize, int bufferSize) throws IOException {
+  public EsResource(OccurrenceHeatmapService<EsOccurrenceHeatmapResponse> heatmapService, int tileSize, int bufferSize) {
     this.tileSize = tileSize;
     this.bufferSize = bufferSize;
     this.heatmapService = heatmapService;
-    projection = Tiles.fromEPSG("EPSG:4326", tileSize);
+    projection = Tiles.fromEPSG(ESPG_4326, tileSize);
   }
 
   @GET
@@ -77,13 +79,13 @@ public final class EsResource {
   @Produces("application/x-protobuf")
   public byte[] all(@PathParam("type") String type, @PathParam("key") String key,
                     @PathParam("z") int z, @PathParam("x") long x, @PathParam("y") long y,
-                    @DefaultValue("EPSG:4326") @QueryParam("srs") String srs,
+                    @DefaultValue(ESPG_4326) @QueryParam("srs") String srs,
                     @QueryParam("bin") String bin,
                     @DefaultValue(DEFAULT_HEX_PER_TILE) @QueryParam("hexPerTile") int hexPerTile,
                     @DefaultValue(DEFAULT_SQUARE_SIZE) @QueryParam("squareSize") int squareSize,
                     @Context HttpServletResponse response, @Context HttpServletRequest request) throws Exception {
     enableCORS(response);
-    Preconditions.checkArgument("EPSG:4326".equalsIgnoreCase(srs),
+    Preconditions.checkArgument(ESPG_4326.equalsIgnoreCase(srs),
                                 "Adhoc search maps are currently only available in EPSG:4326");
     OccurrenceHeatmapRequest heatmapRequest = OccurrenceHeatmapRequestProvider.buildOccurrenceHeatmapRequest(request);
 
@@ -93,60 +95,20 @@ public final class EsResource {
 
 
     heatmapRequest.setGeometry(searchGeom(z, x, y));
-    LOG.info("Heatmap request:{}", heatmapRequest);
+    LOG.debug("Heatmap request:{}", heatmapRequest);
 
     EsOccurrenceHeatmapResponse heatmapResponse = heatmapService.searchHeatMap(heatmapRequest);
-    VectorTileEncoder encoder = new VectorTileEncoder (tileSize, bufferSize, false);
+    VectorTileEncoder encoder = new VectorTileEncoder(tileSize, bufferSize, false);
 
-    // iterate the data structure from SOLR painting cells
+    // iterate the data structure to render tiles
     for (EsOccurrenceHeatmapResponse.GeoGridBucket bucket : heatmapResponse.getBuckets()) {
         if (bucket.getDocCount()  > 0) {
-
-          Rectangle2D.Double cell = asRectangle(bucket.getCell());
-          // get the extent of the cell
-          final Point2D cellSW = new Point2D.Double(cell.getMinX(), cell.getMinY());
-          final Point2D cellNE = new Point2D.Double(cell.getMaxX(), cell.getMaxY());
-
-          double minXAsNorm = cellSW.getX();
-          double maxXAsNorm = cellNE.getX();
-          double minYAsNorm = cellSW.getY();
-          double maxYAsNorm = cellNE.getY();
-
           // convert the lat,lng into pixel coordinates
-          Double2D swGlobalXY = projection.toGlobalPixelXY(maxYAsNorm, minXAsNorm, z);
-          Double2D neGlobalXY = projection.toGlobalPixelXY(minYAsNorm, maxXAsNorm, z);
-          Double2D swTileXY = Tiles.toTileLocalXY(swGlobalXY, TileSchema.WGS84_PLATE_CAREÉ, z, x, y, tileSize, bufferSize);
-          Double2D neTileXY = Tiles.toTileLocalXY(neGlobalXY, TileSchema.WGS84_PLATE_CAREÉ, z, x, y, tileSize, bufferSize);
-
-          int minX = (int) swTileXY.getX();
-          int maxX = (int) neTileXY.getX();
-          double centerX = minX + (((double) maxX - minX) / 2);
-
-          int minY = (int) swTileXY.getY();
-          int maxY = (int) neTileXY.getY();
-          double centerY = minY + (((double) maxY - minY) / 2);
-
-          Map<String, Object> meta = new HashMap<>();
-          meta.put("total", bucket.getDocCount());
-
+          Double2D swTileXY = getTopLeftTile(bucket.getCell().getBounds(),z,x,y);
+          Double2D neTileXY = getBottomRightTile(bucket.getCell().getBounds(),z,x,y);
           // for binning, we add the cell center point, otherwise the geometry
-          if (bin != null) {
-            // hack: use just the center points for each cell
-            Coordinate center = new Coordinate(centerX, centerY);
-            encoder.addFeature("occurrence", meta, GEOMETRY_FACTORY.createPoint(center));
-
-          } else {
-            // default behaviour with polygon squares for the cells
-            Coordinate[] coords = new Coordinate[] {
-              new Coordinate(swTileXY.getX(), swTileXY.getY()),
-              new Coordinate(neTileXY.getX(), swTileXY.getY()),
-              new Coordinate(neTileXY.getX(), neTileXY.getY()),
-              new Coordinate(swTileXY.getX(), neTileXY.getY()),
-              new Coordinate(swTileXY.getX(), swTileXY.getY())
-            };
-
-            encoder.addFeature("occurrence", meta, GEOMETRY_FACTORY.createPolygon(coords));
-          }
+          encoder.addFeature(LAYER_NAME, Collections.singletonMap("total", bucket.getDocCount()),
+            bin != null? getCentroid(swTileXY,neTileXY) : getPolygon(swTileXY,neTileXY));
         }
     }
 
@@ -155,7 +117,6 @@ public final class EsResource {
       // binning will throw IAE on no data, so code defensively
       HexBin binner = new HexBin(HEX_TILE_SIZE, hexPerTile);
       return binner.bin(encodedTile, z, x, y);
-
     } else if (BIN_MODE_SQUARE.equalsIgnoreCase(bin) && heatmapResponse.getBuckets() != null && !heatmapResponse.getBuckets().isEmpty()) {
       SquareBin binner = new SquareBin(SQUARE_TILE_SIZE, squareSize);
       return binner.bin(encodedTile, z, x, y);
@@ -164,6 +125,50 @@ public final class EsResource {
     }
   }
 
+  /**
+   * Translates the top-left coordinate of a bound into pixel based tile.
+   */
+  private Double2D getTopLeftTile(EsOccurrenceHeatmapResponse.Bounds bounds, int z, long x, long y) {
+    Double2D swGlobalXY = projection.toGlobalPixelXY(bounds.getTopLeft().getLat(), bounds.getTopLeft().getLon(), z);
+    return Tiles.toTileLocalXY(swGlobalXY, TileSchema.WGS84_PLATE_CAREÉ, z, x, y, tileSize, bufferSize);
+  }
+
+  /**
+   * Translates the bottom-right coordinate of a bound into pixel based tile.
+   */
+
+  private Double2D getBottomRightTile(EsOccurrenceHeatmapResponse.Bounds bounds, int z, long x, long y) {
+    Double2D neGlobalXY = projection.toGlobalPixelXY(bounds.getBottomRight().getLat(), bounds.getBottomRight().getLon(), z);
+    return Tiles.toTileLocalXY(neGlobalXY, TileSchema.WGS84_PLATE_CAREÉ, z, x, y, tileSize, bufferSize);
+  }
+
+  /**
+   * Extracts the centroid of tile described by the top-left and bottom-right points.
+   */
+  private static Point getCentroid(Double2D swTileXY, Double2D neTileXY) {
+    int minX = (int) swTileXY.getX();
+    int maxX = (int) neTileXY.getX();
+    int minY = (int) swTileXY.getY();
+    int maxY = (int) neTileXY.getY();
+    double centerY = minY + (((double) maxY - minY) / 2);
+    double centerX = minX + (((double) maxX - minX) / 2);
+    // hack: use just the center points for each cell
+    return GEOMETRY_FACTORY.createPoint(new Coordinate(centerX, centerY));
+  }
+
+  /**
+   * Creates a WKT polygon based on top-left and bottom-right points.
+   */
+  private static Polygon getPolygon(Double2D swTileXY, Double2D neTileXY) {
+    Coordinate[] coordinates = new Coordinate[] {
+      new Coordinate(swTileXY.getX(), swTileXY.getY()),
+      new Coordinate(neTileXY.getX(), swTileXY.getY()),
+      new Coordinate(neTileXY.getX(), neTileXY.getY()),
+      new Coordinate(swTileXY.getX(), neTileXY.getY()),
+      new Coordinate(swTileXY.getX(), swTileXY.getY())
+    };
+    return GEOMETRY_FACTORY.createPolygon(coordinates);
+  }
 
 
 
@@ -189,29 +194,26 @@ public final class EsResource {
     double bufferDegrees = QUERY_BUFFER_PERCENTAGE * degreesPerTile;
 
     // the edges of the tile after buffering
-    double minLng = (degreesPerTile * x) - 180 - bufferDegrees;
-    minLng = (minLng > 180)? minLng - 360: (minLng < -180)? minLng + 360 : minLng;
-    double maxLng = minLng + degreesPerTile + (bufferDegrees * 2);
-    maxLng = (maxLng > 180)? maxLng - 360: (maxLng < -180)? maxLng + 360 : maxLng;
+    double minLng = to180Degrees((degreesPerTile * x) - 180 - bufferDegrees);
+    double maxLng = to180Degrees(minLng + degreesPerTile + (bufferDegrees * 2));
 
-    double maxLat = 90 - (degreesPerTile * y) + bufferDegrees;
-    double minLat = maxLat - degreesPerTile - 2 * bufferDegrees;
-
-    // handle the dateline wrapping (for all zooms above 0, which needs special attention)
-
-    // clip the extent (SOLR barfs otherwise)
-    maxLat = Math.min(maxLat, 90);
-    minLat = Math.max(minLat, -90);
+    // clip the extent (ES barfs otherwise)
+    double maxLat = Math.min(90 - (degreesPerTile * y) + bufferDegrees, 90);
+    double minLat = Math.max(maxLat - degreesPerTile - 2 * bufferDegrees, -90);
 
     return new Double2D[] {new Double2D(minLng, minLat), new Double2D(maxLng, maxLat)};
   }
 
   /**
-   * Utility method to convert Cell into a Rectangle2D.
+   * if the longitude is expressed from 0..360 it is converted to -180..180.
    */
-  private static Rectangle2D.Double asRectangle(EsOccurrenceHeatmapResponse.Cell cell) {
-    return new Rectangle2D.Double(cell.getBounds().getTopLeft().getLon(), cell.getBounds().getTopLeft().getLat(),
-      cell.getBounds().getBottomRight().getLon() - cell.getBounds().getTopLeft().getLon(), //width
-      cell.getBounds().getTopLeft().getLat() - cell.getBounds().getBottomRight().getLat()); //height
+  private static double to180Degrees(double longitude) {
+    if(longitude > 180) {
+      return longitude - 360;
+    } else if (longitude < -180){
+      return longitude + 360;
+    }
+    return longitude;
   }
+
 }
