@@ -12,6 +12,7 @@ import org.gbif.occurrence.search.heatmap.OccurrenceHeatmapService;
 import org.gbif.occurrence.search.heatmap.es.EsOccurrenceHeatmapResponse;
 
 import java.util.Collections;
+import java.util.Objects;
 import javax.inject.Singleton;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
@@ -26,6 +27,9 @@ import javax.ws.rs.core.Context;
 import com.codahale.metrics.annotation.Timed;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.CacheLoader;
+import com.google.common.cache.LoadingCache;
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.GeometryFactory;
 import com.vividsolutions.jts.geom.Point;
@@ -45,9 +49,49 @@ import static org.gbif.maps.resource.Params.enableCORS;
 /**
  * Elasticsearch as a vector tile service.
  */
-@Path("/map/occurrence/adhoc")
+@Path("/occurrence/adhoc")
 @Singleton
 public final class EsResource {
+
+  /**
+   * Utility class used to cache z,x,y values constantly used to calculate tile/bboxes.
+   */
+  private static final class ZXY {
+
+    private final int z;
+
+    private final long x;
+
+    private final long y;
+
+    ZXY(int z, long x, long y) {
+      this.z = z;
+      this.x = x;
+      this.y = y;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) {
+        return true;
+      }
+
+      if (o == null || getClass() != o.getClass()) {
+        return false;
+      }
+      ZXY zxy = (ZXY) o;
+      return z == zxy.z && x == zxy.x && y == zxy.y;
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hash(z, x, y);
+    }
+  }
+
+  //Experimental: keeps a cache of all the calculated geometries from z,x and y.
+  private static final LoadingCache<ZXY,String> ZXY_TO_GEOM = CacheBuilder.newBuilder().build(CacheLoader.from(zxy ->
+  searchGeom(zxy.z, zxy.x, zxy.y)));
 
   private static final Logger LOG = LoggerFactory.getLogger(EsResource.class);
 
@@ -56,6 +100,7 @@ public final class EsResource {
   private static final String ESPG_4326 = "EPSG:4326";
 
   private static final String LAYER_NAME = "occurrence";
+
 
   @VisibleForTesting
   static final double QUERY_BUFFER_PERCENTAGE = 0.125;  // 1/8th tile buffer all around, similar to the HBase maps
@@ -84,17 +129,17 @@ public final class EsResource {
                     @DefaultValue(DEFAULT_HEX_PER_TILE) @QueryParam("hexPerTile") int hexPerTile,
                     @DefaultValue(DEFAULT_SQUARE_SIZE) @QueryParam("squareSize") int squareSize,
                     @Context HttpServletResponse response, @Context HttpServletRequest request) throws Exception {
+
     enableCORS(response);
     Preconditions.checkArgument(ESPG_4326.equalsIgnoreCase(srs),
                                 "Adhoc search maps are currently only available in EPSG:4326");
     OccurrenceHeatmapRequest heatmapRequest = OccurrenceHeatmapRequestProvider.buildOccurrenceHeatmapRequest(request);
 
-
     Preconditions.checkArgument(bin == null || BIN_MODE_HEX.equalsIgnoreCase(bin)
         || BIN_MODE_SQUARE.equalsIgnoreCase(bin), "Unsupported bin mode");
 
-
-    heatmapRequest.setGeometry(searchGeom(z, x, y));
+    heatmapRequest.setGeometry(ZXY_TO_GEOM.get(new ZXY(z, x, y)));
+    heatmapRequest.setZoom(adjustZoom(z));
     LOG.debug("Heatmap request:{}", heatmapRequest);
 
     EsOccurrenceHeatmapResponse heatmapResponse = heatmapService.searchHeatMap(heatmapRequest);
@@ -214,6 +259,13 @@ public final class EsResource {
       return longitude + 360;
     }
     return longitude;
+  }
+
+  /**
+   * Adjusts the zoom level to size acceptable (performance wise) by Elasticsearch.
+   */
+  private static int adjustZoom(int z) {
+    return Math.max(3, Math.min(z , 6));
   }
 
 }
