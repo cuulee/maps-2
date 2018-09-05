@@ -1,31 +1,5 @@
 package org.gbif.maps.resource;
 
-import org.gbif.api.model.occurrence.search.OccurrenceSearchParameter;
-import org.gbif.api.model.occurrence.search.OccurrenceSearchRequest;
-import org.gbif.api.vocabulary.BasisOfRecord;
-import org.gbif.maps.common.projection.Long2D;
-import org.gbif.occurrence.search.OccurrenceSearchRequestBuilder;
-import org.gbif.occurrence.search.solr.OccurrenceSolrField;
-
-import java.io.IOException;
-import java.util.List;
-import java.util.Map;
-import java.util.TreeMap;
-import java.util.function.Predicate;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-import javax.inject.Singleton;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-import javax.ws.rs.DefaultValue;
-import javax.ws.rs.GET;
-import javax.ws.rs.Path;
-import javax.ws.rs.PathParam;
-import javax.ws.rs.Produces;
-import javax.ws.rs.QueryParam;
-import javax.ws.rs.core.Context;
-import javax.ws.rs.core.MediaType;
-
 import com.codahale.metrics.annotation.Timed;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -41,12 +15,27 @@ import no.ecc.vectortile.VectorTileDecoder;
 import no.ecc.vectortile.VectorTileEncoder;
 import org.apache.commons.math3.stat.regression.SimpleRegression;
 import org.apache.solr.client.solrj.SolrClient;
-import org.apache.solr.client.solrj.SolrQuery;
 import org.apache.solr.client.solrj.SolrServerException;
-import org.apache.solr.client.solrj.response.FacetField;
-import org.apache.solr.client.solrj.response.QueryResponse;
+import org.gbif.api.model.occurrence.search.OccurrenceSearchParameter;
+import org.gbif.api.model.occurrence.search.OccurrenceSearchRequest;
+import org.gbif.api.vocabulary.BasisOfRecord;
+import org.gbif.maps.common.projection.Long2D;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import javax.inject.Singleton;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import javax.ws.rs.*;
+import javax.ws.rs.core.Context;
+import javax.ws.rs.core.MediaType;
+import java.io.IOException;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.gbif.maps.resource.Params.enableCORS;
 import static org.gbif.maps.resource.Params.mapKey;
@@ -202,22 +191,23 @@ public final class RegressionResource {
     }
 
     // Default search request handler, no sort order, 1 record (required) and facet support
-    OccurrenceSearchRequestBuilder builder = new OccurrenceSearchRequestBuilder(null, 1, 1, true);
-    SolrQuery query = builder.build(searchRequest);
-
-    query.setFacetLimit(300); // safeguard with 3 centuries of data (this is designed for modern day analysis)
-    query.setRows(0);
-
-    LOG.debug("SOLR query: {}", query);
-    QueryResponse response = solrClient.query(query);
-    FacetField years = response.getFacetField(OccurrenceSolrField.YEAR.getFieldName());
-    TreeMap<String, Long> yearCounts = Maps.newTreeMap();
-    years.getValues().forEach(c -> yearCounts.put(c.getName(), c.getCount()));
-
-    yearCounts.forEach((y, c) -> LOG.debug("{}:{}", y, c));
-
-    LOG.info("SOLR response: {}", yearCounts);
-    return yearCounts;
+//    OccurrenceSearchRequestBuilder builder = new OccurrenceSearchRequestBuilder(null, 1, 1, true);
+//    SolrQuery query = builder.build(searchRequest);
+//
+//    query.setFacetLimit(300); // safeguard with 3 centuries of data (this is designed for modern day analysis)
+//    query.setRows(0);
+//
+//    LOG.debug("SOLR query: {}", query);
+//    QueryResponse response = solrClient.query(query);
+//    FacetField years = response.getFacetField(OccurrenceSolrField.YEAR.getFieldName());
+//    TreeMap<String, Long> yearCounts = Maps.newTreeMap();
+//    years.getValues().forEach(c -> yearCounts.put(c.getName(), c.getCount()));
+//
+//    yearCounts.forEach((y, c) -> LOG.debug("{}:{}", y, c));
+//
+//    LOG.info("SOLR response: {}", yearCounts);
+//    return yearCounts;
+    return null;
   }
 
   /**

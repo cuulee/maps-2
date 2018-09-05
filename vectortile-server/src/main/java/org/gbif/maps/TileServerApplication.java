@@ -5,6 +5,7 @@ import ch.qos.logback.classic.util.ContextInitializer;
 import com.google.common.base.Preconditions;
 import org.apache.http.HttpHost;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.RestHighLevelClient;
 import org.gbif.maps.common.meta.MapMetastore;
 import org.gbif.maps.common.meta.Metastores;
 import org.gbif.maps.resource.*;
@@ -58,8 +59,9 @@ public class TileServerApplication extends Application<TileServerConfiguration> 
     Configuration conf = HBaseConfiguration.create();
     conf.set("hbase.zookeeper.quorum", configuration.getHbase().getZookeeperQuorum());
 
-    RestClient esClient = createEsClient(configuration.getEsConfig());
-    OccurrenceHeatmapService<EsOccurrenceHeatmapResponse> heatmapsService = new OccurrenceHeatmapsEsService(esClient, configuration.getEsConfig().getIndex());
+    RestHighLevelClient esClient = createEsClient(configuration.getEsConfig());
+    OccurrenceHeatmapService<EsOccurrenceHeatmapResponse> heatmapsService =
+      new OccurrenceHeatmapsEsService(esClient, configuration.getEsConfig().getIndex());
 
     // Either use Zookeeper or static config to locate tables
     HBaseMaps hbaseMaps = null;
@@ -97,7 +99,7 @@ public class TileServerApplication extends Application<TileServerConfiguration> 
     }
   }
 
-  private RestClient createEsClient(TileServerConfiguration.EsConfiguration esConfig) {
+  private RestHighLevelClient createEsClient(TileServerConfiguration.EsConfiguration esConfig) {
     Objects.requireNonNull(esConfig);
     Objects.requireNonNull(esConfig.getHosts());
     Preconditions.checkArgument(esConfig.getHosts().length > 0);
@@ -113,6 +115,6 @@ public class TileServerApplication extends Application<TileServerConfiguration> 
         throw new IllegalArgumentException(e.getMessage(), e);
       }
     }
-    return RestClient.builder(hosts).build();
+    return new RestHighLevelClient(RestClient.builder(hosts).build());
   }
 }
