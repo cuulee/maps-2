@@ -1,22 +1,19 @@
 package org.gbif.maps;
 
+import ch.qos.logback.classic.LoggerContext;
+import ch.qos.logback.classic.util.ContextInitializer;
+import ch.qos.logback.core.joran.spi.JoranException;
+import com.codahale.metrics.MetricRegistry;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import io.dropwizard.Configuration;
+import io.dropwizard.logging.LoggingFactory;
+import io.dropwizard.logging.LoggingUtil;
+import org.gbif.ws.discovery.conf.ServiceConfiguration;
+
 import javax.annotation.Nullable;
 import javax.validation.Valid;
 import javax.validation.constraints.NotNull;
-
-import ch.qos.logback.core.joran.spi.JoranException;
-import com.codahale.metrics.MetricRegistry;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import io.dropwizard.Configuration;
-import io.dropwizard.logging.LoggingUtil;
-
-import org.gbif.occurrence.search.es.EsConfig;
-import org.gbif.ws.discovery.conf.ServiceConfiguration;
-
-import ch.qos.logback.classic.LoggerContext;
-import ch.qos.logback.classic.util.ContextInitializer;
-import com.fasterxml.jackson.annotation.JsonIgnore;
-import io.dropwizard.logging.LoggingFactory;
 
 /**
  * Application configuration with sensible defaults if applicable.
