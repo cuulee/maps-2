@@ -3,8 +3,15 @@ package org.gbif.maps;
 import ch.qos.logback.classic.LoggerContext;
 import ch.qos.logback.classic.util.ContextInitializer;
 import com.google.common.base.Preconditions;
+import io.dropwizard.Application;
+import io.dropwizard.assets.AssetsBundle;
+import io.dropwizard.setup.Bootstrap;
+import io.dropwizard.setup.Environment;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.http.HttpHost;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.gbif.maps.common.meta.MapMetastore;
 import org.gbif.maps.common.meta.Metastores;
@@ -13,13 +20,6 @@ import org.gbif.occurrence.search.heatmap.OccurrenceHeatmapService;
 import org.gbif.occurrence.search.heatmap.es.EsOccurrenceHeatmapResponse;
 import org.gbif.occurrence.search.heatmap.es.OccurrenceHeatmapsEsService;
 import org.gbif.ws.discovery.lifecycle.DiscoveryLifeCycle;
-
-import io.dropwizard.Application;
-import io.dropwizard.assets.AssetsBundle;
-import io.dropwizard.setup.Bootstrap;
-import io.dropwizard.setup.Environment;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.slf4j.LoggerFactory;
 
 import java.net.MalformedURLException;
@@ -115,6 +115,13 @@ public class TileServerApplication extends Application<TileServerConfiguration> 
         throw new IllegalArgumentException(e.getMessage(), e);
       }
     }
-    return new RestHighLevelClient(RestClient.builder(hosts).build());
+
+    RestClientBuilder builder =
+      RestClient.builder(hosts)
+        .setRequestConfigCallback(
+          requestConfigBuilder -> requestConfigBuilder.setConnectTimeout(3000).setSocketTimeout(60000))
+        .setMaxRetryTimeoutMillis(60000);
+
+    return new RestHighLevelClient(builder.build());
   }
 }
